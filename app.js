@@ -11,6 +11,7 @@ const expressPlayground =
 
 const graphqlSchema = require('./graphql/schema');
 const graphqlResolver = require('./graphql/resolvers');
+const auth = require('./middleware/auth');
 
 const MONGODB_URI = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.unz10ho.mongodb.net/messages?retryWrites=true&w=majority`;
 
@@ -53,6 +54,8 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+app.use(auth);
 
 app.use(
   '/graphql',
