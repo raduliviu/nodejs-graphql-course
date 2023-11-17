@@ -5,9 +5,12 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
+const { createHandler } = require('graphql-http/lib/use/express');
+const expressPlayground =
+  require('graphql-playground-middleware-express').default;
 
-const feedRoutes = require('./routes/feed');
-const authRoutes = require('./routes/auth');
+const graphqlSchema = require('./graphql/schema');
+const graphqlResolver = require('./graphql/resolvers');
 
 const MONGODB_URI = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.unz10ho.mongodb.net/messages?retryWrites=true&w=majority`;
 
@@ -48,8 +51,29 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/feed', feedRoutes);
-app.use('/auth', authRoutes);
+app.use(
+  '/graphql',
+  createHandler({ schema: graphqlSchema, rootValue: graphqlResolver })
+);
+app.get('/playground', expressPlayground({ endpoint: '/graphql' }));
+
+// Solution from Joel/TA
+// app.all('/graphql', (req, res) =>
+//   createHandler({
+//     schema: graphqlSchema,
+//     rootValue: {
+//       createUser: (args) => graphqlResolver.createUser(args, req),
+//       login: (args) => graphqlResolver.login(args, req),
+//       createPost: (args) => graphqlResolver.createPost(args, req),
+//       posts: (args) => graphqlResolver.posts(args, req),
+//       post: (args) => graphqlResolver.post(args, req),
+//       updatePost: (args) => graphqlResolver.updatePost(args, req),
+//       deletePost: (args) => graphqlResolver.deletePost(args, req),
+//       user: (args) => graphqlResolver.user(args, req),
+//       updateStatus: (args) => graphqlResolver.updateStatus(args, req),
+//     },
+//   })(req, res)
+// );
 
 app.use((error, req, res, next) => {
   console.log(error);
@@ -62,10 +86,6 @@ app.use((error, req, res, next) => {
 mongoose
   .connect(MONGODB_URI)
   .then(() => {
-    const server = app.listen(8080);
-    const io = require('./socket').init(server);
-    io.on('connection', (socket) => {
-      console.log('Client connected');
-    });
+    app.listen(8080);
   })
   .catch((err) => console.log(err));
