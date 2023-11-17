@@ -48,12 +48,27 @@ app.use((req, res, next) => {
     'GET, POST, PUT, PATCH, DELETE'
   );
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
   next();
 });
 
 app.use(
   '/graphql',
-  createHandler({ schema: graphqlSchema, rootValue: graphqlResolver })
+  createHandler({
+    schema: graphqlSchema,
+    rootValue: graphqlResolver,
+    formatError(err) {
+      if (!err.originalError) {
+        return err;
+      }
+      const data = err.originalError.data;
+      const message = err.message || 'An error occurred';
+      const code = err.originalError.code || 500;
+      return { message, status: code, data };
+    },
+  })
 );
 app.get('/playground', expressPlayground({ endpoint: '/graphql' }));
 
