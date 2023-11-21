@@ -12,6 +12,7 @@ const expressPlayground =
 const graphqlSchema = require('./graphql/schema');
 const graphqlResolver = require('./graphql/resolvers');
 const auth = require('./middleware/auth');
+const { clearImage } = require('./util/file');
 
 const MONGODB_URI = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.unz10ho.mongodb.net/messages?retryWrites=true&w=majority`;
 
@@ -46,7 +47,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader(
     'Access-Control-Allow-Methods',
-    'GET, POST, PUT, PATCH, DELETE'
+    'GET, POST, PUT, PATCH, DELETE, OPTIONS'
   );
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') {
@@ -57,11 +58,53 @@ app.use((req, res, next) => {
 
 app.use(auth);
 
-app.use(
-  '/graphql',
+app.put('/post-image', (req, res, next) => {
+  if (!req.isAuth) {
+    throw new Error('Not authenticated!');
+  }
+  if (!req.file) {
+    return res.status(200).json({ message: 'No file provided!' });
+  }
+  if (req.body.oldPath) {
+    clearImage(req.body.oldPath);
+  }
+  return res
+    .status(201)
+    .json({ message: 'Fire stored', filePath: req.file.path });
+});
+
+// app.use(
+//   '/graphql',
+//   createHandler({
+//     schema: graphqlSchema,
+//     rootValue: graphqlResolver,
+//     formatError(err) {
+//       if (!err.originalError) {
+//         return err;
+//       }
+//       const data = err.originalError.data;
+//       const message = err.message || 'An error occurred';
+//       const code = err.originalError.code || 500;
+//       return { message, status: code, data };
+//     },
+//   })
+// );
+
+// Solution from Joel/TA
+app.all('/graphql', (req, res) =>
   createHandler({
     schema: graphqlSchema,
-    rootValue: graphqlResolver,
+    rootValue: {
+      createUser: (args) => graphqlResolver.createUser(args, req),
+      login: (args) => graphqlResolver.login(args, req),
+      createPost: (args) => graphqlResolver.createPost(args, req),
+      posts: (args) => graphqlResolver.posts(args, req),
+      post: (args) => graphqlResolver.post(args, req),
+      updatePost: (args) => graphqlResolver.updatePost(args, req),
+      deletePost: (args) => graphqlResolver.deletePost(args, req),
+      user: (args) => graphqlResolver.user(args, req),
+      updateStatus: (args) => graphqlResolver.updateStatus(args, req),
+    },
     formatError(err) {
       if (!err.originalError) {
         return err;
@@ -71,27 +114,9 @@ app.use(
       const code = err.originalError.code || 500;
       return { message, status: code, data };
     },
-  })
+  })(req, res)
 );
 app.get('/playground', expressPlayground({ endpoint: '/graphql' }));
-
-// Solution from Joel/TA
-// app.all('/graphql', (req, res) =>
-//   createHandler({
-//     schema: graphqlSchema,
-//     rootValue: {
-//       createUser: (args) => graphqlResolver.createUser(args, req),
-//       login: (args) => graphqlResolver.login(args, req),
-//       createPost: (args) => graphqlResolver.createPost(args, req),
-//       posts: (args) => graphqlResolver.posts(args, req),
-//       post: (args) => graphqlResolver.post(args, req),
-//       updatePost: (args) => graphqlResolver.updatePost(args, req),
-//       deletePost: (args) => graphqlResolver.deletePost(args, req),
-//       user: (args) => graphqlResolver.user(args, req),
-//       updateStatus: (args) => graphqlResolver.updateStatus(args, req),
-//     },
-//   })(req, res)
-// );
 
 app.use((error, req, res, next) => {
   console.log(error);
